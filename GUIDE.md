@@ -1,7 +1,3 @@
-Here's your improved instructions with explanations:
-
----
-
 ## IIS ViewState RCE - Attack Walkthrough
 
 ### Prerequisites
