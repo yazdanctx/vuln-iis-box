@@ -1,5 +1,5 @@
 # ==============================================
-# IIS LAB SETUP
+# H4CK3R STYLE IIS LAB SETUP
 # Run as Administrator
 # ==============================================
 
@@ -17,6 +17,130 @@ if (Get-WebApplication -Site $siteName -Name $appName -ErrorAction SilentlyConti
     Remove-WebApplication -Site $siteName -Name $appName
 }
 New-WebApplication -Site $siteName -Name $appName -PhysicalPath $basePath -ApplicationPool "DefaultAppPool" -Force
+
+# ==============================================
+# PUBLIC FILES (accessible via direct URL)
+# ==============================================
+
+# 1. robots.txt
+Write-Host "[+] Dropping robots.txt..." -ForegroundColor Green
+$robotsTxt = @'
+User-agent: *
+Disallow: /admin/
+Disallow: /backup/
+Disallow: /config/
+
+# FLAG{robots_reveal_the_paths_8472}
+# Internal paths - do not index
+# dev backup: /backup/db_export_2024.sql
+'@
+Set-Content -Path "$basePath\robots.txt" -Value $robotsTxt -Force
+
+# 2. README.md
+Write-Host "[+] Dropping README.md..." -ForegroundColor Green
+$readmeMd = @'
+# Internal Document Portal v2.4
+
+## Access Credentials
+- Dev environment: http://localhost/main/
+- Staging: http://staging.internal.corp/main/
+
+## Changelog
+- v2.4: Fixed session handling
+- v2.3: Added download portal
+- v2.2: Patched critical auth bypass (CVE-2024-1234)
+
+## Notes
+FLAG{docs_left_in_the_open_5541}
+DO NOT COMMIT CREDENTIALS TO REPO
+'@
+Set-Content -Path "$basePath\README.md" -Value $readmeMd -Force
+
+# ==============================================
+# HIDDEN FILES (only via LFI on download.aspx)
+# ==============================================
+
+# 3. Hidden config backup
+Write-Host "[+] Dropping web.config.bak..." -ForegroundColor Green
+$webConfigBak = @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.web>
+    <machineKey
+      validationKey="CB2721ABDAF8E9DC516D621D8B8BF13A2C9E868FEA8B4F7D8C8F8F8F8F8F8F8F"
+      decryptionKey="ABCD1234567890ABCD1234567890ABCD"
+      validation="SHA1"
+      decryption="AES" />
+    <pages enableViewState="true" enableViewStateMac="true" viewStateEncryptionMode="Never" />
+    <compilation debug="true" targetFramework="4.8" />
+    <customErrors mode="Off" />
+  </system.web>
+  <system.webServer>
+    <defaultDocument>
+      <files>
+        <add value="home.aspx" />
+      </files>
+    </defaultDocument>
+  </system.webServer>
+  <!-- FLAG{bak_files_are_gold_7331} -->
+  <!-- Dev note: keep this backup in case web.config breaks -->
+</configuration>
+'@
+Set-Content -Path "$basePath\web.config.bak" -Value $webConfigBak -Force
+
+# 4. Hidden credentials file
+Write-Host "[+] Dropping .env..." -ForegroundColor Green
+$envFile = @'
+# Database Configuration
+DB_HOST=192.168.1.100
+DB_PORT=1433
+DB_USER=sa
+DB_PASS=S3cur3P@ssw0rd2024!
+DB_NAME=internal_docs
+
+# SMTP Configuration
+SMTP_HOST=mail.internal.corp
+SMTP_PORT=587
+SMTP_USER=noreply@internal.corp
+SMTP_PASS=M@ilS3rv3r!
+
+# API Keys
+API_KEY=sk-9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c
+FLAG{dotenv_exposed_9902}
+
+# JWT Secret
+JWT_SECRET=Th1sIsASup3rS3cr3tJWTK3y!
+'@
+Set-Content -Path "$basePath\.env" -Value $envFile -Force
+
+# 5. Hidden backup SQL dump
+Write-Host "[+] Dropping db_backup.sql..." -ForegroundColor Green
+$sqlDump = @'
+-- Database backup: internal_docs
+-- Date: 2024-01-15
+-- Server: DB-PROD-01
+
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    username VARCHAR(50),
+    password_hash VARCHAR(255),
+    role VARCHAR(20)
+);
+
+INSERT INTO users VALUES (1, 'admin', '5f4dcc3b5aa765d61d8327deb882cf99', 'administrator');
+INSERT INTO users VALUES (2, 'jsmith', '7c6a180b36896a0a8c02787eeafb0e4c', 'editor');
+INSERT INTO users VALUES (3, 'mjones', '6cb75f652a9b52798eb6cf2201057c73', 'viewer');
+
+-- FLAG{sql_dump_leaked_4561}
+-- Dev credentials for local testing
+-- admin:password123
+-- Remember to change before prod deployment!
+'@
+Set-Content -Path "$basePath\db_backup.sql" -Value $sqlDump -Force
+
+# ==============================================
+# CORE APPLICATION FILES
+# ==============================================
 
 # web.config
 Write-Host "[+] Dropping web.config..." -ForegroundColor Green
@@ -67,7 +191,7 @@ $homeAspx = @'
             border:1px solid #333;
             padding:2rem;
             width:90%;
-            max-width:520px
+            max-width:480px
         }
         .prompt{color:#0f0}
         .cursor{animation:blink 1s infinite}
@@ -267,7 +391,10 @@ $aboutAspx = @'
 '@
 Set-Content -Path "$basePath\about.aspx" -Value $aboutAspx -Force
 
-# Permissions
+# ==============================================
+# PERMISSIONS & RESTART
+# ==============================================
+
 Write-Host "[+] Setting permissions..." -ForegroundColor Green
 $acl = Get-Acl $basePath
 $permission = "IIS AppPool\DefaultAppPool","Read,ReadAndExecute,ListDirectory","ContainerInherit,ObjectInherit","None","Allow"
@@ -275,16 +402,30 @@ $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule $per
 $acl.SetAccessRule($accessRule)
 Set-Acl $basePath $acl
 
-# Recycle
 Write-Host "[+] Restarting IIS..." -ForegroundColor Green
 iisreset /noforce | Out-Null
 
 Write-Host "`n[+] LAB DEPLOYED" -ForegroundColor Green
 Write-Host "==============================" -ForegroundColor DarkGray
-Write-Host "http://localhost/main/         -> /root (ViewState RCE)" -ForegroundColor White
-Write-Host "http://localhost/main/download.aspx?file= -> /dl (LFI)" -ForegroundColor White
-Write-Host "http://localhost/main/about.aspx -> /info" -ForegroundColor White
+Write-Host "TARGET: http://localhost/main/" -ForegroundColor White
 Write-Host "==============================" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "LFI: http://localhost/main/download.aspx?file=../../web.config" -ForegroundColor DarkGray
-
+Write-Host "PUBLIC FILES (direct access):" -ForegroundColor Yellow
+Write-Host "  http://localhost/main/robots.txt" -ForegroundColor White
+Write-Host "  http://localhost/main/README.md" -ForegroundColor White
+Write-Host ""
+Write-Host "HIDDEN FILES (LFI via download.aspx):" -ForegroundColor Red
+Write-Host "  http://localhost/main/download.aspx?file=web.config.bak" -ForegroundColor White
+Write-Host "  http://localhost/main/download.aspx?file=.env" -ForegroundColor White
+Write-Host "  http://localhost/main/download.aspx?file=db_backup.sql" -ForegroundColor White
+Write-Host ""
+Write-Host "FUZZING COMMANDS:" -ForegroundColor Cyan
+Write-Host "  shortscan http://localhost/main/" -ForegroundColor White
+Write-Host "  ffuf -u http://localhost/main/FUZZ -w wordlist.txt" -ForegroundColor White
+Write-Host ""
+Write-Host "FLAGS TO FIND:" -ForegroundColor Magenta
+Write-Host "  FLAG{robots_reveal_the_paths_8472}" -ForegroundColor White
+Write-Host "  FLAG{docs_left_in_the_open_5541}" -ForegroundColor White
+Write-Host "  FLAG{bak_files_are_gold_7331}" -ForegroundColor White
+Write-Host "  FLAG{dotenv_exposed_9902}" -ForegroundColor White
+Write-Host "  FLAG{sql_dump_leaked_4561}" -ForegroundColor White
