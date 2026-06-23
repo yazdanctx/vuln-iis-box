@@ -34,6 +34,8 @@ Use the generated wordlist to fuzz the web server and discover hidden endpoints:
 ffuf -u http://iis.lab/main/FUZZ -w wordlist.txt -mc 200,403
 ```
 
+ffuf -u http://iis.lab/main/download.aspx?file=FUZZ -w wordlist.txt
+
 **Goal:** Find and access `web.config` to extract the machine keys.
 
 ---
